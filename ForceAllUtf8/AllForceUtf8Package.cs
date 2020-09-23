@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -19,6 +20,20 @@ using Task = System.Threading.Tasks.Task;
 
 namespace ForceAllUtf8
 {
+    public class OptionPageGrid : DialogPage
+    {
+        private string NoBomFiles = "json,java";
+
+        [Category("Options")]
+        [DisplayName("No Bom file extensions")]
+        [Description("File extension list that saved with utf-8(no BOM) encoding, default \"json,java\"")]
+        public string OptionNoBomFiles
+        {
+            get { return NoBomFiles; }
+            set { NoBomFiles = value; }
+        }
+    }
+
     /// <summary>
     /// This is the class that implements the package exposed by this assembly.
     /// </summary>
@@ -40,6 +55,7 @@ namespace ForceAllUtf8
     [InstalledProductRegistration("#110", "#112", "1.2", IconResourceID = 400)] // Info on this package for Help/About
     [ProvideAutoLoad(UIContextGuids80.SolutionExists, PackageAutoLoadFlags.BackgroundLoad)]
     [Guid(AllForceUtf8Package.PackageGuidString)]
+    [ProvideOptionPage(typeof(OptionPageGrid), "ForceAllUtf8", "General", 0, 0, true)]
     //[SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1650:ElementDocumentationMustBeSpelledCorrectly", Justification = "pkgdef, VS and vsixmanifest are valid VS terms")]
     public sealed class AllForceUtf8Package : AsyncPackage
     {
@@ -58,6 +74,15 @@ namespace ForceAllUtf8
             // not sited yet inside Visual Studio environment. The place to do all the other
             // initialization is the Initialize method.
             Debug.WriteLine(string.Format(CultureInfo.CurrentCulture, "Entering constructor for: {0}", this.ToString()));
+        }
+
+        public string NoBomFiles
+        {
+            get
+            {
+                OptionPageGrid page = (OptionPageGrid)GetDialogPage(typeof(OptionPageGrid));
+                return page.OptionNoBomFiles;
+            }
         }
 
         #region Package Members
@@ -87,11 +112,15 @@ namespace ForceAllUtf8
             }
 
             string path = document.FullName;
-            bool isJava = false;
-            if (path.EndsWith(".java"))
+            bool noBom = false;
+            foreach (var ext in NoBomFiles.Split(','))
             {
-                Debug.WriteLine(string.Format(CultureInfo.CurrentCulture, "file '{0}' is java file, will convert to utf-8(no BOM).", path));
-                isJava = true;
+                if (path.ToLower().EndsWith("." + ext))
+                {
+                    Debug.WriteLine(string.Format(CultureInfo.CurrentCulture, "file '{0}' will convert to utf-8(no BOM).", path));
+                    noBom = true;
+                    break;
+                }
             }
 
             try
@@ -117,7 +146,7 @@ namespace ForceAllUtf8
                     reader = new StreamReader(stream, new UTF8Encoding(true, true));
                     text = reader.ReadToEnd();
                     stream.Close();
-                    File.WriteAllText(path, text, new UTF8Encoding(!isJava));  // java file save with no-BOM
+                    File.WriteAllText(path, text, new UTF8Encoding(!noBom));  // file save with no-BOM
                     Debug.WriteLine(string.Format(CultureInfo.CurrentCulture, "Already convert file '{0}' encoding to utf-8(BOM).", path));
                 }
                 catch (DecoderFallbackException)
@@ -126,7 +155,7 @@ namespace ForceAllUtf8
                     reader = new StreamReader(stream, Encoding.Default);
                     text = reader.ReadToEnd();
                     stream.Close();
-                    File.WriteAllText(path, text, new UTF8Encoding(!isJava));
+                    File.WriteAllText(path, text, new UTF8Encoding(!noBom));
                     Debug.WriteLine(string.Format(CultureInfo.CurrentCulture, "Already convert file '{0}' encoding to utf-8(BOM).", path));
                 }
 
